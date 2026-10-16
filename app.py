@@ -1,79 +1,85 @@
-from pathlib import Path
-
+from flask import Flask, request, jsonify, render_template
 import joblib
 import numpy as np
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-CARPETA = Path(__file__).resolve().parent
-ruta_modelo = CARPETA / "modelo_iris.pkl"
+# Cargar el modelo entrenado
+datos_modelo = joblib.load("modelo_iris.pkl")
 
-datos_modelo = joblib.load(ruta_modelo)
+# Obtener el modelo y los nombres de las especies
 modelo = datos_modelo["modelo"]
 nombres_especies = datos_modelo["nombres_especies"]
 
-@app.route("/", methods=["GET"])
+
+@app.route("/")
 def inicio():
+    # Mostrar la página web
+    return render_template("index.html")
+
+
+@app.route("/health")
+def estado():
+    # Consultar el estado de la API
     return jsonify({
-        "mensaje": "API de clasificación de flores Iris",
         "estado": "Funcionando",
-        "endpoint_prediccion": "/predict",
-        "metodo": "POST"
+        "mensaje": "API de clasificación de flores Iris"
     })
+
 
 @app.route("/predict", methods=["POST"])
 def predecir():
-    datos = request.get_json(silent=True)
-
-    if not isinstance(datos, dict):
-        return jsonify({
-            "error": "Debes enviar un objeto JSON."
-        }), 400
-
-    caracteristicas = [
-        "sepal_length",
-        "sepal_width",
-        "petal_length",
-        "petal_width"
-    ]
-
-    if not all(campo in datos for campo in caracteristicas):
-        return jsonify({
-            "error": "Debes enviar las cuatro características de la flor.",
-            "campos_requeridos": caracteristicas
-        }), 400
-
     try:
-        valores = [float(datos[campo]) for campo in caracteristicas]
-    except (TypeError, ValueError):
+        datos = request.get_json()
+
+        if not datos:
+            return jsonify({
+                "error": "No se recibieron datos JSON."
+            }), 400
+
+        variables = [
+            "sepal_length",
+            "sepal_width",
+            "petal_length",
+            "petal_width"
+        ]
+
+        if not all(variable in datos for variable in variables):
+            return jsonify({
+                "error": "Faltan una o más medidas de la flor."
+            }), 400
+
+        medidas = [float(datos[variable]) for variable in variables]
+
+        if not all(np.isfinite(valor) and valor > 0 for valor in medidas):
+            return jsonify({
+                "error": "Todas las medidas deben ser números positivos."
+            }), 400
+
+        entrada = np.array(medidas).reshape(1, -1)
+
+        prediccion = modelo.predict(entrada)[0]
+        especie = str(nombres_especies[int(prediccion)])
+
         return jsonify({
-            "error": "Todas las características deben ser números."
+            "especie": especie,
+            "prediccion": especie,
+            "medidas": {
+                variable: valor
+                for variable, valor in zip(variables, medidas)
+            }
+        })
+
+    except (ValueError, TypeError):
+        return jsonify({
+            "error": "Las medidas deben ser números válidos."
         }), 400
 
-    if not np.all(np.isfinite(valores)):
+    except Exception:
+        app.logger.exception("Error al realizar la predicción")
         return jsonify({
-            "error": "Los valores deben ser números finitos."
-        }), 400
-
-    if not all(0 < valor <= 10 for valor in valores):
-        return jsonify({
-            "error": "Las medidas deben ser mayores que 0 y menores o iguales a 10 cm."
-        }), 400
-
-    entrada = np.array(valores).reshape(1, 4)
-
-    resultado = int(modelo.predict(entrada)[0])
-    especie = nombres_especies[resultado]
-
-    return jsonify({
-        "prediccion": especie,
-        "clase": resultado,
-        "caracteristicas_recibidas": {
-            campo: valor
-            for campo, valor in zip(caracteristicas, valores)
-        }
-    })
+            "error": "Ocurrió un error al procesar la predicción."
+        }), 500
 
 
 if __name__ == "__main__":
