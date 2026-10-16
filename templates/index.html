@@ -1,0 +1,201 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador de flores Iris</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 30px 15px;
+            color: #1e293b;
+        }
+
+        .contenedor {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px #00000015;
+        }
+
+        h1 {
+            text-align: center;
+            color: #166534;
+        }
+
+        p {
+            line-height: 1.5;
+        }
+
+        label {
+            display: block;
+            margin-top: 16px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 24px;
+            padding: 13px;
+            background: #15803d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #166534;
+        }
+
+        #resultado {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            background: #f0fdf4;
+            white-space: pre-wrap;
+        }
+
+        .oculto {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="contenedor">
+        <h1>Clasificador de flores Iris</h1>
+
+        <p>
+            Introduce las medidas de una flor para que el modelo
+            de Machine Learning prediga a qué especie pertenece.
+            Las medidas se expresan en centímetros.
+        </p>
+
+        <form id="formulario">
+            <label for="sepal_length">
+                Largo del sépalo
+            </label>
+            <input
+                type="number"
+                id="sepal_length"
+                step="any"
+                min="0"
+                value="5.1"
+                required
+            >
+
+            <label for="sepal_width">
+                Ancho del sépalo
+            </label>
+            <input
+                type="number"
+                id="sepal_width"
+                step="any"
+                min="0"
+                value="3.5"
+                required
+            >
+
+            <label for="petal_length">
+                Largo del pétalo
+            </label>
+            <input
+                type="number"
+                id="petal_length"
+                step="any"
+                min="0"
+                value="1.4"
+                required
+            >
+
+            <label for="petal_width">
+                Ancho del pétalo
+            </label>
+            <input
+                type="number"
+                id="petal_width"
+                step="any"
+                min="0"
+                value="0.2"
+                required
+            >
+
+            <button type="submit" id="boton">
+                Predecir especie
+            </button>
+        </form>
+
+        <div id="resultado" class="oculto" role="status"></div>
+    </main>
+
+    <script>
+        const formulario = document.getElementById("formulario");
+        const resultado = document.getElementById("resultado");
+        const boton = document.getElementById("boton");
+
+        formulario.addEventListener("submit", async function(evento) {
+            evento.preventDefault();
+
+            const datos = {
+                sepal_length: Number(document.getElementById("sepal_length").value),
+                sepal_width: Number(document.getElementById("sepal_width").value),
+                petal_length: Number(document.getElementById("petal_length").value),
+                petal_width: Number(document.getElementById("petal_width").value)
+            };
+
+            resultado.classList.remove("oculto");
+            resultado.textContent = "Consultando el modelo...";
+            boton.disabled = true;
+
+            try {
+                const respuesta = await fetch("/predict", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(datos)
+                });
+
+                const informacion = await respuesta.json();
+
+                if (!respuesta.ok) {
+                    throw new Error(
+                        informacion.error || "No fue posible realizar la predicción."
+                    );
+                }
+
+                resultado.textContent =
+                    "Especie predicha: " +
+                    (informacion.especie || informacion.prediction || informacion.prediccion);
+
+            } catch (error) {
+                resultado.textContent =
+                    "Error al realizar la predicción: " + error.message;
+            } finally {
+                boton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
